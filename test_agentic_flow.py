@@ -21,9 +21,10 @@ generator_response = openai.chat.completions.create(
 
 generator_result = generator_response.choices[0].message.content
 
-print(generator_result)
+print(f"{generator_result}\n")
 
-while True:
+responses = dict()
+while len(responses) <= 3:
     evaluator_prompt = f"""
     The following prompt was given to OpenAI's o3-mini model:
 
@@ -33,28 +34,39 @@ while True:
 
     {generator_result}
 
-    Do you think this result is perfect or not? Provide your reasoning.
+    Do you think this response is perfect or not? Provide your reasoning. Rate how good the response is out of 10, 0 is completely incorrect and 10 is a perfect response. The score can be a decimal.
 
-    Now respond with a JSON with two keys: "perfect" and "reasoning". In "perfect", have the value be either "y" for yes or "n" for no. In "reasoning", have the value be your reasoning for why you think the result o3-mini gave was perfect or not.
+    Now respond with a JSON with three keys: "perfect", "reasoning", and "score". In "perfect", have the value be either "y" for yes or "n" for no. In "reasoning", have the value be your reasoning for why you think the result o3-mini gave was perfect or not. In "score", have the value be only a decimal number 0-10 that represents how good the response was according to the scale I mentioned earlier.
 
-    Do not add anything besides that JSON to the response. Do not include markdown formatting or code blocks.
+    Do not add anything besides that JSON to the response. 
+    
+    Do not include markdown formatting or code blocks.
+
+    Ensure this is machine-parsable.
     """
 
-    message = [{"role": "user", "content": evaluator_prompt}]
+    message = [{"role": "system", "content": "You are a JSON API. All outputs must be valid JSON and must not contain any commentary, Markdown, or extra formatting. This will be parsed by a script, so any deviation from JSON will cause errors."}, {"role": "user", "content": evaluator_prompt}]
 
     evaluator_response = deepseek.chat.completions.create(
-        model="deepseek-reasoner",
+        model="deepseek-chat",
         messages=message,
+        response_format={'type': 'json_object'}
     )
 
     evaluator_result = evaluator_response.choices[0].message.content
 
-    print(evaluator_result)
+    print(f"{evaluator_result}\n")
 
     json_evaluator_result = json.loads(evaluator_result)
+    responses[generator_result] = float(json_evaluator_result["score"])
 
     if json_evaluator_result["perfect"] == "y":
-        print(f"Final Answer: \n{generator_result}")
+        print(f"Final Answer: \n{generator_result}\n")
+        break
+    
+    if len(responses) == 3:
+        best_response = max(responses, key=responses.get)
+        print(f"Final Answer: \n{best_response}\n")
         break
     
     generator_prompt = f"""
@@ -82,7 +94,7 @@ while True:
 
     generator_result = generator_response.choices[0].message.content
 
-    print(generator_result)
+    print(f"{generator_result}\n")
 
-        
+
     
